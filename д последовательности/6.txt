@@ -1,0 +1,50 @@
+@startuml
+title Проверка работы и получение результата
+
+participant "frontend-edu\n(преподаватель)" as TeacherFront
+participant "frontend-edu\n(ученик)" as StudentFront
+participant "API Gateway" as Gateway
+participant "Education Service" as Edu
+database "Education DB" as DB
+
+== Просмотр сданных работ ==
+
+TeacherFront -> Gateway: GET /api/education/teacher/assignments/{assignment_id}/submissions
+Gateway -> Gateway: Проверить JWT
+Gateway -> Gateway: Проверить роль teacher
+
+Gateway -> Edu: GetSubmissions(assignment_id, status?)\nprotobuf
+Edu -> DB: SELECT assignment_submissions WHERE assignment_id = assignment_id
+DB --> Edu: domain.AssignmentSubmission[]
+Edu --> Gateway: pb.GetSubmissionsResponse
+Gateway --> TeacherFront: JSON: список сданных работ
+
+== Проверка работы ==
+
+TeacherFront -> Gateway: POST /api/education/teacher/submissions/{submission_id}/review\nJSON: status, comment?
+Gateway -> Gateway: Проверить JWT
+Gateway -> Gateway: Проверить роль teacher
+Gateway -> Gateway: Сформировать pb.ReviewSubmissionRequest
+
+Gateway -> Edu: ReviewSubmission(submission_id, status, reviewer_id, comment)\nprotobuf
+Edu -> DB: Получить submission
+Edu -> DB: Проверить status = pending
+Edu -> DB: UPDATE assignment_submissions SET status, reviewer_id, review_comment, reviewed_at
+
+DB --> Edu: domain.AssignmentSubmission
+Edu --> Gateway: pb.AssignmentSubmission
+Gateway --> TeacherFront: JSON: результат проверки
+
+== Получение результата учеником ==
+
+StudentFront -> Gateway: GET /api/education/student/assignments/{assignment_id}
+Gateway -> Gateway: Проверить JWT
+
+Gateway -> Edu: GetAssignment(assignment_id)\nprotobuf
+Edu -> DB: Получить задание
+Edu -> DB: Получить попытки и последнюю сдачу
+DB --> Edu: domain.AssignmentDetail
+Edu --> Gateway: pb.AssignmentDetail
+Gateway --> StudentFront: JSON: задание с latest_submission
+
+@enduml

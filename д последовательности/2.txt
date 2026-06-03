@@ -1,0 +1,56 @@
+@startuml
+title Проведение интервью преподавателем
+
+participant "frontend-main\n(преподаватель)" as TeacherFront
+participant "API Gateway" as Gateway
+participant "Education Service" as Edu
+database "Education DB" as DB
+
+== Просмотр слотов группы ==
+
+TeacherFront -> Gateway: GET /api/education/teacher/groups/{group_id}/slots
+Gateway -> Gateway: Проверить JWT
+
+Gateway -> Edu: ListInterviewSlots(group_id)\nprotobuf
+Edu -> DB: Получить группу
+Edu -> DB: Проверить groups.teacher_id
+Edu -> DB: SELECT interview_slots
+
+DB --> Edu: domain.InterviewSlot[]
+Edu --> Gateway: pb.ListInterviewSlotsResponse
+Gateway --> TeacherFront: JSON: список слотов
+
+== Просмотр записей на интервью ==
+
+TeacherFront -> Gateway: GET /api/education/teacher/groups/{group_id}/slot-interviews
+Gateway -> Gateway: Проверить JWT
+
+Gateway -> Edu: ListGroupSlotInterviews(group_id)\nprotobuf
+Edu -> DB: Получить группу
+Edu -> DB: Проверить groups.teacher_id
+Edu -> DB: SELECT interviews JOIN applications WHERE slot_id IS NOT NULL
+
+DB --> Edu: domain.SlotInterview[]
+Edu --> Gateway: pb.ListGroupSlotInterviewsResponse
+Gateway --> TeacherFront: JSON: записи на интервью
+
+== Выставление результата интервью ==
+
+TeacherFront -> Gateway: POST /api/education/teacher/interviews/{id}/result\nJSON: result, comment, scores
+Gateway -> Gateway: Проверить JWT
+Gateway -> Gateway: Сформировать pb.SetInterviewResultRequest
+
+Gateway -> Edu: SetInterviewResult(interview_id, result, comment, scores)\nprotobuf
+Edu -> DB: Получить interview
+Edu -> DB: Получить application
+Edu -> DB: Получить group
+Edu -> DB: Проверить groups.teacher_id
+Edu -> DB: UPDATE interviews SET result, comment, evaluated_at, evaluated_by, scores
+Edu -> DB: UPDATE applications SET status = статус по result
+Edu -> DB: INSERT application_status_audit(from_status=текущий, to_status=новый, actor_role=teacher)
+
+DB --> Edu: domain.Interview
+Edu --> Gateway: pb.Interview
+Gateway --> TeacherFront: JSON: интервью
+
+@enduml

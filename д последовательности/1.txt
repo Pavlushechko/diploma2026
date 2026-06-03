@@ -1,0 +1,56 @@
+@startuml
+title Подача заявки и запись на интервью
+
+participant "frontend-main\n(ученик)" as Front
+participant "API Gateway" as Gateway
+participant "Education Service" as Edu
+database "Education DB" as DB
+
+== Подача заявки ==
+
+Front -> Gateway: POST /api/education/student/applications\nJSON: dto.ApplyToGroupRequest
+Gateway -> Gateway: Проверить JWT
+Gateway -> Gateway: Сформировать pb.ApplyToGroupRequest
+
+Gateway -> Edu: ApplyToGroup(group_id, comment)\nprotobuf
+Edu -> DB: Проверить открытый набор
+Edu -> DB: Проверить лимит мест
+Edu -> DB: Проверить повторную заявку
+Edu -> DB: Проверить, что пользователь не преподаватель группы
+Edu -> DB: INSERT applications(status = pending)
+
+DB --> Edu: domain.Application
+Edu --> Gateway: pb.Application
+Gateway -> Gateway: applicationFromProto + enrichApplication
+Gateway --> Front: JSON: dto.Application
+
+== Запись на интервью ==
+
+Front -> Gateway: GET /api/education/student/groups/{group_id}/interview-slots
+Gateway -> Gateway: Проверить JWT
+
+Gateway -> Edu: ListAvailableInterviewSlots(group_id)\nprotobuf
+Edu -> DB: Проверить requires_interview
+Edu -> DB: Получить слоты группы
+Edu -> Edu: Отфильтровать будущие и свободные слоты
+
+Edu --> Gateway: pb.ListAvailableInterviewSlotsResponse
+Gateway --> Front: JSON: список слотов
+
+Front -> Gateway: POST /api/education/student/applications/{id}/book-interview\nJSON: { slot_id }
+Gateway -> Gateway: Проверить JWT
+Gateway -> Gateway: Сформировать pb.BookInterviewSlotRequest
+
+Gateway -> Edu: BookInterviewSlot(application_id, slot_id)\nprotobuf
+Edu -> DB: Проверить владельца заявки
+Edu -> DB: Проверить status = pending
+Edu -> DB: Проверить слот этой же группы
+Edu -> DB: UPDATE interview_slots SET booked_count = booked_count + 1
+Edu -> DB: INSERT interviews(slot_id, application_id, interviewer_id = groups.teacher_id)
+Edu -> DB: UPDATE applications SET status = interview_scheduled
+
+DB --> Edu: domain.Interview
+Edu --> Gateway: pb.Interview
+Gateway -> Gateway: interviewFromProto
+Gateway --> Front: JSON: dto.Interview
+@enduml

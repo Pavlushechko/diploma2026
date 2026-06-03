@@ -1,0 +1,40 @@
+@startuml
+title Зачисление пользователя в учебную группу
+
+participant "frontend-admin" as AdminFront
+participant "API Gateway" as Gateway
+participant "Education Service" as Edu
+database "Education DB" as DB
+
+== Просмотр заявок ==
+
+AdminFront -> Gateway: GET /api/moderation/education/applications
+Gateway -> Gateway: Проверить JWT
+Gateway -> Gateway: Проверить роль moderator/admin
+
+Gateway -> Edu: GetApplications(status?)\nprotobuf
+Edu -> DB: SELECT applications с данными курса, группы и интервью
+DB --> Edu: domain.ApplicationDetail[]
+Edu --> Gateway: pb.GetApplicationsResponse
+Gateway --> AdminFront: JSON: список заявок
+
+== Зачисление ==
+
+AdminFront -> Gateway: POST /api/moderation/education/applications/{id}/approve\nJSON: enrollment_order?
+Gateway -> Gateway: Проверить JWT
+Gateway -> Gateway: Проверить роль moderator/admin
+Gateway -> Gateway: Сформировать pb.ApproveApplicationRequest
+
+Gateway -> Edu: ApproveApplication(id, enrollment_order)\nprotobuf
+Edu -> DB: Получить заявку
+Edu -> DB: Проверить допустимый статус pending/interview_done
+Edu -> DB: UPDATE applications SET status = approved
+Edu -> DB: INSERT group_students(user_id, group_id, enrollment_order)
+Edu -> DB: UPDATE groups SET current_students = current_students + 1
+Edu -> DB: INSERT application_status_audit(from_status=текущий, to_status=approved, actor_role=system)
+
+DB --> Edu: domain.Application
+Edu --> Gateway: pb.Application
+Gateway --> AdminFront: JSON: заявка обновлена
+
+@enduml

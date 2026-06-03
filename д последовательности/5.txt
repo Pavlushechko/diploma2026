@@ -1,0 +1,40 @@
+@startuml
+title Просмотр и сдача задания
+
+participant "frontend-edu\n(ученик)" as Front
+participant "API Gateway" as Gateway
+participant "S3 / MinIO" as S3
+participant "Education Service" as Edu
+database "Education DB" as DB
+
+== Просмотр задания ==
+
+Front -> Gateway: GET /api/education/student/assignments/{assignment_id}
+Gateway -> Gateway: Проверить JWT
+
+Gateway -> Edu: GetAssignment(assignment_id)\nprotobuf
+Edu -> DB: Проверить, что задание не скрыто
+Edu -> DB: Получить задание, попытки и последнюю сдачу
+DB --> Edu: domain.AssignmentDetail
+Edu --> Gateway: pb.AssignmentDetail
+Gateway --> Front: JSON: данные задания
+
+== Сдача задания ==
+
+Front -> Gateway: POST /api/education/student/assignments/submit\nmultipart: assignment_id, content, files
+Gateway -> Gateway: Проверить JWT
+
+Gateway -> S3: Upload files to submissions/
+S3 --> Gateway: file_urls
+
+Gateway -> Edu: SubmitAssignment(assignment_id, content, file_urls)\nprotobuf
+Edu -> DB: Проверить задание
+Edu -> DB: Проверить лимит попыток
+Edu -> DB: Проверить наличие текста или файла
+Edu -> DB: INSERT assignment_submissions(status = pending)
+
+DB --> Edu: domain.AssignmentSubmission
+Edu --> Gateway: pb.AssignmentSubmission
+Gateway --> Front: JSON: отправленная работа
+
+@enduml

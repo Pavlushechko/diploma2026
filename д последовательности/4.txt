@@ -1,0 +1,42 @@
+@startuml
+title Открытие обучения
+
+participant "frontend-edu\n(ученик)" as Front
+participant "API Gateway" as Gateway
+participant "Education Service" as Edu
+database "Education DB" as DB
+
+== Получение групп ученика ==
+
+Front -> Gateway: GET /api/education/student/groups
+Gateway -> Gateway: Проверить JWT
+
+Gateway -> Edu: GetMyGroups(user_id)\nprotobuf
+Edu -> DB: Получить группы ученика через group_students
+DB --> Edu: domain.Group[]
+Edu --> Gateway: pb.GetMyGroupsResponse
+Gateway --> Front: JSON: список групп
+
+== Получение занятий группы ==
+
+Front -> Gateway: GET /api/education/student/groups/{group_id}/lessons
+Gateway -> Gateway: Проверить JWT
+
+Gateway -> Edu: GetGroupLessons(group_id)\nprotobuf
+Edu -> DB: Получить занятия группы
+DB --> Edu: domain.Lesson[]
+Edu --> Gateway: pb.GetGroupLessonsResponse
+Gateway --> Front: JSON: список занятий
+
+== Получение заданий группы ==
+
+Front -> Gateway: GET /api/education/student/groups/{group_id}/assignments
+Gateway -> Gateway: Проверить JWT
+
+Gateway -> Edu: GetGroupAssignments(group_id)\nprotobuf
+Edu -> DB: Получить задания группы с попытками и последней сдачей
+DB --> Edu: domain.AssignmentDetail[]
+Edu --> Gateway: pb.GetGroupAssignmentsResponse
+Gateway --> Front: JSON: список заданий
+
+@enduml
