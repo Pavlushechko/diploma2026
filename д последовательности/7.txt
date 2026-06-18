@@ -1,0 +1,43 @@
+@startuml
+title AI-помощник: черновик проверки работы
+
+participant "frontend-edu\n(преподаватель)" as Front
+participant "API Gateway" as Gateway
+participant "Education Service" as Edu
+participant "S3 / MinIO" as S3
+participant "LLM API" as LLM
+database "Education DB" as DB
+
+== Старт ==
+
+Front -> Gateway: GET /api/education/ai/settings/public
+Gateway -> Edu: GetPublicAISettings()
+Edu -> DB: ai_settings
+Edu --> Front: teacher_enabled
+
+Front -> Gateway: GET .../submissions/{id}/ai-review
+Gateway -> Edu: GetSubmissionAIReviewDraft()
+Edu -> DB: ai_sessions + ai_messages\n(последний черновик)
+Edu --> Front: сохранённый черновик или пусто
+
+== Черновик ==
+
+Front -> Gateway: POST .../submissions/{id}/ai-review
+Gateway -> Edu: ReviewSubmissionAI(submission_id)
+Edu -> DB: лимит, submission, assignment, group
+Edu -> Edu: Проверить teacher_id группы
+
+Edu -> S3: Скачать файлы задания и сдачи
+S3 --> Edu: file content
+Edu -> Edu: Извлечь текст из файлов
+
+Edu -> LLM: Generate(prompt)
+LLM --> Edu: teacher_message, feedback_draft,\nrisks, suggested_questions
+
+Edu -> DB: INSERT ai_session + ai_message,\nai_request_log
+Edu --> Gateway: черновик
+Gateway --> Front: JSON
+
+Front -> Front: показать черновик\n«Вставить в комментарий»
+
+@enduml

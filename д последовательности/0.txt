@@ -1,0 +1,44 @@
+@startuml
+title AI-помощник: подбор курса
+
+participant "frontend-main" as Front
+participant "API Gateway" as Gateway
+participant "Education Service" as Edu
+participant "Milvus" as Milvus
+participant "LLM API" as LLM
+database "Education DB" as DB
+
+== Старт ==
+
+Front -> Gateway: GET /api/education/ai/settings/public
+Gateway -> Edu: GetPublicAISettings()
+Edu -> DB: ai_settings
+Edu --> Front: student_enabled
+
+Front -> Gateway: GET/POST /api/education/ai/sessions
+Gateway -> Edu: List / Create / Get session
+Edu -> DB: ai_sessions, ai_messages
+Edu --> Front: session + история
+
+== Вопрос ==
+
+Front -> Gateway: POST .../sessions/{id}/messages
+Gateway -> Edu: SendAIMessage(message)
+Edu -> DB: лимит, session, INSERT user message
+
+Edu -> LLM: Embed(message)
+LLM --> Edu: vector
+Edu -> Milvus: Search(vector)
+Milvus --> Edu: hits курсов
+Edu -> DB: fallback каталог (если нет hits)
+
+Edu -> LLM: Generate(prompt)
+LLM --> Edu: answer + recommended_courses
+
+Edu -> DB: INSERT assistant message, request_log
+Edu --> Gateway: ответ + рекомендации
+Gateway --> Front: JSON
+
+Front -> Front: ответ + ссылки на курсы
+
+@enduml
